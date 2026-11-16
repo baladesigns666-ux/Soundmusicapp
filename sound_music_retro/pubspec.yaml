@@ -16,5 +16,17 @@ dependencies:
   google_fonts: ^6.2.1
   shared_preferences: ^2.3.2
 
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/LOGO.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/LOGO.png"
+
 flutter:
   uses-material-design: true
+  assets:
+    - assets/LOGO.png
