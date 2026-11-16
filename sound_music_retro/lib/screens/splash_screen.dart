@@ -12,13 +12,31 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   bool _permissionDenied = false;
+  late final AnimationController _pulseController;
+  late final Animation<double> _scaleAnim;
 
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+
+    _scaleAnim = Tween<double>(begin: 0.96, end: 1.04).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
     _requestPermissionAndLoad();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   Future<void> _requestPermissionAndLoad() async {
@@ -60,56 +78,34 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Retro Cassette Emblem
-            Container(
-              width: 112.w,
-              height: 112.w,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF1744), Color(0xFFB71C1C)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24.r),
-                border: Border.all(
-                  color: const Color(0xFF8E0000),
-                  width: 3.w,
-                ),
-                boxShadow: [
-                  BoxShadow(
+            ScaleTransition(
+              scale: _scaleAnim,
+              child: Container(
+                width: 120.w,
+                height: 120.w,
+                padding: EdgeInsets.all(14.r),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(26.r),
+                  border: Border.all(
                     color: const Color(0xFF8E0000),
-                    offset: Offset(5.w, 5.h),
-                    blurRadius: 0,
+                    width: 3.w,
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.album_rounded,
-                    color: Colors.white,
-                    size: 52.sp,
-                  ),
-                  SizedBox(height: 4.h),
-                  Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF8E0000),
+                      offset: Offset(5.w, 5.h),
+                      blurRadius: 0,
                     ),
-                    child: Text(
-                      'HI-FI 90s',
-                      style: TextStyle(
-                        fontSize: 9.sp,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.0,
-                        color: const Color(0xFFB71C1C),
-                      ),
-                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14.r),
+                  child: Image.asset(
+                    'assets/LOGO.png',
+                    fit: BoxFit.contain,
                   ),
-                ],
+                ),
               ),
             ),
             SizedBox(height: 28.h),
