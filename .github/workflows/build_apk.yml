@@ -32,14 +32,12 @@ jobs:
           cp sound_music_retro/android/app/src/main/AndroidManifest.xml app_build/android/app/src/main/AndroidManifest.xml
           mkdir -p app_build/assets
 
-          # Auto-find LOGO.png anywhere in repository (case-insensitive)
           LOGO_FILE=$(find . -maxdepth 4 -iname "LOGO.png" -not -path "./app_build/*" | head -n 1)
           if [ -n "$LOGO_FILE" ]; then
             echo "Found logo at: $LOGO_FILE"
             cp "$LOGO_FILE" app_build/assets/LOGO.png
           else
             echo "ERROR: LOGO.png not found anywhere in repository!"
-            find . -maxdepth 3
             exit 1
           fi
 
@@ -56,14 +54,12 @@ jobs:
           cat << 'EOF' >> build.gradle.kts
 
           subprojects {
-              afterEvaluate {
-                  if (plugins.hasPlugin("com.android.library")) {
-                      extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
-                          if (namespace == null) {
-                              namespace = group.toString()
-                          }
-                          compileSdk = 35
+              pluginManager.withPlugin("com.android.library") {
+                  extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
+                      if (namespace == null) {
+                          namespace = group.toString()
                       }
+                      compileSdk = 35
                   }
               }
           }
