@@ -24,16 +24,14 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Create Flutter Project & Copy Source + Assets
+      - name: Create Flutter Project & Copy Source + LOGO.png
         run: |
           flutter create --org com.kitesoftwares --project-name sound_music app_build
           cp -r sound_music_retro/lib/* app_build/lib/
           cp sound_music_retro/pubspec.yaml app_build/pubspec.yaml
           cp sound_music_retro/android/app/src/main/AndroidManifest.xml app_build/android/app/src/main/AndroidManifest.xml
-          if [ -d "sound_music_retro/assets" ]; then
-            mkdir -p app_build/assets
-            cp -r sound_music_retro/assets/* app_build/assets/
-          fi
+          mkdir -p app_build/assets
+          cp sound_music_retro/assets/LOGO.png app_build/assets/LOGO.png
 
       - name: Configure Android SDK & Fix Plugin Namespace
         run: |
@@ -65,9 +63,7 @@ jobs:
         run: |
           cd app_build
           flutter pub get
-          if [ -f "assets/logo.png" ]; then
-            dart run flutter_launcher_icons
-          fi
+          dart run flutter_launcher_icons
           flutter build apk --release
 
       - name: Upload APK Artifact
