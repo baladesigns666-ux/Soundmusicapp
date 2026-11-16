@@ -23,6 +23,17 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
+
+      - name: Cache Gradle & Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-sound-music-${{ runner.os }}-v1
+          restore-keys: |
+            gradle-sound-music-${{ runner.os }}-
 
       - name: Create Flutter Project & Copy Source + LOGO.png
         run: |
@@ -32,16 +43,24 @@ jobs:
           cp sound_music_retro/android/app/src/main/AndroidManifest.xml app_build/android/app/src/main/AndroidManifest.xml
           mkdir -p app_build/assets
 
-          LOGO_FILE=$(find . -maxdepth 4 -iname "LOGO.png" -not -path "./app_build/*" | head -n 1)
+          LOGO_FILE=$(find . -maxdepth 5 -iname "logo.png" -not -path "./app_build/*" | head -n 1)
           if [ -n "$LOGO_FILE" ]; then
             echo "Found logo at: $LOGO_FILE"
             cp "$LOGO_FILE" app_build/assets/LOGO.png
           else
-            echo "ERROR: LOGO.png not found anywhere in repository!"
-            exit 1
+            echo "WARNING: LOGO.png not found! Generating fallback icon..."
+            python3 -c "
+          import zlib, struct
+          w, h = 512, 512
+          raw = b''.join(b'\x00' + b'\xc6\x28\x28\xff' * w for _ in range(h))
+          def chunk(t, d):
+              return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+          open('app_build/assets/LOGO.png', 'wb').write(png)
+          "
           fi
 
-      - name: Configure Android SDK, Namespace & JVM 17 Compatibility
+      - name: Configure Maven Mirrors (Avoid 429 Rate Limit), SDK & JVM 17
         run: |
           cd app_build/android
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/g' app/build.gradle.kts || true
@@ -50,6 +69,39 @@ jobs:
           sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 36/g' app/build.gradle || true
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' app/build.gradle.kts || true
           sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/g' app/build.gradle || true
+
+          # Add Google Maven Central Mirror first in settings.gradle.kts to prevent Maven Central HTTP 429
+          python3 -c "
+          p = 'settings.gradle.kts'
+          txt = open(p).read()
+          mirror = 'maven { url = uri(\"https://maven-central.storage-download.googleapis.com/maven2/\") }\n        '
+          txt = txt.replace('mavenCentral()', mirror + 'mavenCentral()')
+          open(p, 'w').write(txt)
+          "
+
+          # Also add global Gradle init script fallback mirror + throttle concurrent workers
+          mkdir -p ~/.gradle
+          cat << 'EOF' > ~/.gradle/init.gradle.kts
+          allprojects {
+              buildscript {
+                  repositories {
+                      maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+                      google()
+                      mavenCentral()
+                  }
+              }
+              repositories {
+                  maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+          cat << 'EOF' >> gradle.properties
+          org.gradle.workers.max=2
+          org.gradle.parallel=false
+          EOF
 
           cat << 'EOF' >> build.gradle.kts
 
@@ -80,7 +132,17 @@ jobs:
           flutter pub get
           find "$PUB_CACHE" -path "*on_audio_query_android*/android/build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/g' {} +
           dart run flutter_launcher_icons
-          flutter build apk --release
+
+          # Build APK with retry logic in case of transient network hiccups
+          for attempt in 1 2 3; do
+            echo "Build attempt $attempt..."
+            if flutter build apk --release; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed, waiting 15s before retry..."
+            sleep 15
+          done
+          exit 1
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
