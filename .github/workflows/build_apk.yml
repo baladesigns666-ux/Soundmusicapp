@@ -31,16 +31,23 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-sound-music-${{ runner.os }}-v3
+          key: gradle-sound-music-${{ runner.os }}-v4
           restore-keys: |
             gradle-sound-music-${{ runner.os }}-
 
       - name: Create Flutter Project & Copy Source + LOGO.png
         run: |
           flutter create --org com.kitesoftwares --project-name sound_music app_build
-          cp -r sound_music_retro/lib/* app_build/lib/
-          cp sound_music_retro/pubspec.yaml app_build/pubspec.yaml
-          cp sound_music_retro/android/app/src/main/AndroidManifest.xml app_build/android/app/src/main/AndroidManifest.xml
+
+          if [ -d "sound_music_retro/lib" ]; then
+            SRC_DIR="sound_music_retro"
+          else
+            SRC_DIR="."
+          fi
+
+          cp -r "$SRC_DIR/lib/"* app_build/lib/
+          cp "$SRC_DIR/pubspec.yaml" app_build/pubspec.yaml
+          cp "$SRC_DIR/android/app/src/main/AndroidManifest.xml" app_build/android/app/src/main/AndroidManifest.xml
           mkdir -p app_build/assets
 
           LOGO_FILE=$(find . -maxdepth 5 -iname "logo.png" -not -path "./app_build/*" | head -n 1)
@@ -49,15 +56,7 @@ jobs:
             cp "$LOGO_FILE" app_build/assets/LOGO.png
           else
             echo "WARNING: LOGO.png not found! Generating fallback icon..."
-            python3 -c "
-          import zlib, struct
-          w, h = 512, 512
-          raw = b''.join(b'\x00' + b'\xc6\x28\x28\xff' * w for _ in range(h))
-          def chunk(t, d):
-              return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
-          open('app_build/assets/LOGO.png', 'wb').write(png)
-          "
+            python3 -c "import zlib, struct; w, h = 512, 512; raw = b''.join(b'\x00' + b'\xc6\x28\x28\xff' * w for _ in range(h)); chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff); png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''); open('app_build/assets/LOGO.png', 'wb').write(png)"
           fi
 
       - name: Configure Flutter Maven Repo, Mirrors, SDK & JVM 17
@@ -70,16 +69,8 @@ jobs:
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' app/build.gradle.kts || true
           sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/g' app/build.gradle || true
 
-          # Keep Flutter's native settings.gradle.kts intact, only prepend Google Maven Central mirror before mavenCentral()
-          python3 -c "
-          p = 'settings.gradle.kts'
-          txt = open(p).read()
-          mirror = 'maven { url = uri(\"https://maven-central.storage-download.googleapis.com/maven2/\") }\n        '
-          txt = txt.replace('mavenCentral()', mirror + 'mavenCentral()')
-          open(p, 'w').write(txt)
-          "
+          python3 -c "p = 'settings.gradle.kts'; txt = open(p).read(); mirror = 'maven { url = uri(\"https://maven-central.storage-download.googleapis.com/maven2/\") }\n        '; open(p, 'w').write(txt.replace('mavenCentral()', mirror + 'mavenCentral()', 1))"
 
-          # Add Flutter storage engine repo + Google mirror to subprojects without overriding settings repositories
           cat << 'EOF' >> build.gradle.kts
 
           allprojects {
