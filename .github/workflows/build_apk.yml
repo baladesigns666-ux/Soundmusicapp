@@ -31,7 +31,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-sound-music-${{ runner.os }}-v1
+          key: gradle-sound-music-${{ runner.os }}-v2
           restore-keys: |
             gradle-sound-music-${{ runner.os }}-
 
@@ -70,30 +70,35 @@ jobs:
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' app/build.gradle.kts || true
           sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/g' app/build.gradle || true
 
-          # Add Google Maven Central Mirror first in settings.gradle.kts to prevent Maven Central HTTP 429
+          # Add Google Maven Central Mirror in settings.gradle.kts AND allow project/init repositories
           python3 -c "
           p = 'settings.gradle.kts'
           txt = open(p).read()
           mirror = 'maven { url = uri(\"https://maven-central.storage-download.googleapis.com/maven2/\") }\n        '
           txt = txt.replace('mavenCentral()', mirror + 'mavenCentral()')
+          txt = txt.replace('RepositoriesMode.FAIL_ON_PROJECT_REPOS', 'RepositoriesMode.PREFER_SETTINGS')
           open(p, 'w').write(txt)
           "
 
-          # Also add global Gradle init script fallback mirror + throttle concurrent workers
+          # Use Gradle settingsEvaluated hook so mirrors are injected cleanly without conflicting with FAIL_ON_PROJECT_REPOS
           mkdir -p ~/.gradle
           cat << 'EOF' > ~/.gradle/init.gradle.kts
-          allprojects {
-              buildscript {
+          settingsEvaluated {
+              pluginManagement {
+                  repositories {
+                      maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+                      google()
+                      mavenCentral()
+                      gradlePluginPortal()
+                  }
+              }
+              dependencyResolutionManagement {
+                  repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
                   repositories {
                       maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
                       google()
                       mavenCentral()
                   }
-              }
-              repositories {
-                  maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
-                  google()
-                  mavenCentral()
               }
           }
           EOF
