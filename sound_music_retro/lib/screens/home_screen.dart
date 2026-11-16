@@ -1,0 +1,725 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:on_audio_query/on_audio_query.dart';
+import '../services/audio_controller.dart';
+import '../widgets/retro_tactile_button.dart';
+import '../widgets/crossfade_sheet.dart';
+import '../widgets/song_tile.dart';
+import 'collection_songs_screen.dart';
+import 'now_playing_screen.dart';
+import 'queue_screen.dart';
+
+enum LibraryTab { songs, albums, artists, liked }
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  LibraryTab _activeTab = LibraryTab.songs;
+  String _searchQuery = '';
+  bool _showMiniSkipBadge = false;
+
+  void _triggerMiniDoubleTapSkip(AudioController controller) {
+    controller.skipForward10Seconds();
+    setState(() => _showMiniSkipBadge = true);
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _showMiniSkipBadge = false);
+    });
+  }
+
+  void _openCrossfadeSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const CrossfadeBottomSheet(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AudioController.instance,
+      builder: (context, _) {
+        final controller = AudioController.instance;
+        final query = _searchQuery.toLowerCase();
+
+        final filteredSongs = controller.allSongs.where((song) {
+          final matchesLiked = _activeTab != LibraryTab.liked ||
+              controller.isLiked(song.id);
+          final matchesSearch = song.title.toLowerCase().contains(query) ||
+              (song.artist ?? '').toLowerCase().contains(query) ||
+              (song.album ?? '').toLowerCase().contains(query);
+          return matchesLiked && matchesSearch;
+        }).toList();
+
+        final filteredAlbums = controller.allAlbums.where((album) {
+          return album.album.toLowerCase().contains(query) ||
+              (album.artist ?? '').toLowerCase().contains(query);
+        }).toList();
+
+        final filteredArtists = controller.allArtists.where((artist) {
+          return artist.artist.toLowerCase().contains(query);
+        }).toList();
+
+        return Scaffold(
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFFFFCDD2),
+                  Color(0xFFFFEBEE),
+                  Color(0xFFFFFFFF),
+                ],
+                stops: [0.0, 0.25, 0.6],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // Top Header: SOUND MUSIC
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(18.w, 16.h, 18.w, 12.h),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 10.w,
+                              height: 10.w,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFF1744),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            SizedBox(width: 8.w),
+                            Text(
+                              'SOUND MUSIC',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 22.sp,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                                color: const Color(0xFFB71C1C),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            RetroTactileButton(
+                              width: 44.w,
+                              height: 44.w,
+                              isPrimaryRed: controller.crossfadeSeconds > 0,
+                              onTap: _openCrossfadeSheet,
+                              child: Icon(
+                                Icons.graphic_eq_rounded,
+                                color: controller.crossfadeSeconds > 0
+                                    ? Colors.white
+                                    : const Color(0xFFB71C1C),
+                                size: 22.sp,
+                              ),
+                            ),
+                            SizedBox(width: 10.w),
+                            RetroTactileButton(
+                              width: 44.w,
+                              height: 44.w,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const QueueScreen()),
+                              ),
+                              child: Icon(
+                                Icons.queue_music_rounded,
+                                color: const Color(0xFFB71C1C),
+                                size: 22.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Search Box
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    child: Container(
+                      height: 46.h,
+                      padding: EdgeInsets.symmetric(horizontal: 14.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14.r),
+                        border: Border.all(
+                          color: const Color(0xFF8E0000),
+                          width: 1.8.w,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD32F2F).withOpacity(0.22),
+                            offset: Offset(3.w, 3.h),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search_rounded,
+                              color: const Color(0xFFD32F2F), size: 20.sp),
+                          SizedBox(width: 10.w),
+                          Expanded(
+                            child: TextField(
+                              onChanged: (v) =>
+                                  setState(() => _searchQuery = v),
+                              style: GoogleFonts.montserrat(
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'SEARCH SONGS, ALBUMS, ARTISTS...',
+                                hintStyle: GoogleFonts.montserrat(
+                                  fontSize: 11.sp,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.6,
+                                  color: const Color(0xFF9E9E9E),
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 14.h),
+
+                  // Category Tabs: SONGS | ALBUMS | ARTISTS | LIKED
+                  SizedBox(
+                    height: 38.h,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: EdgeInsets.symmetric(horizontal: 16.w),
+                      children: [
+                        _buildRetroTab(
+                          label: 'SONGS (${controller.allSongs.length})',
+                          selected: _activeTab == LibraryTab.songs,
+                          onTap: () =>
+                              setState(() => _activeTab = LibraryTab.songs),
+                        ),
+                        SizedBox(width: 10.w),
+                        _buildRetroTab(
+                          label: 'ALBUMS (${controller.allAlbums.length})',
+                          selected: _activeTab == LibraryTab.albums,
+                          onTap: () =>
+                              setState(() => _activeTab = LibraryTab.albums),
+                        ),
+                        SizedBox(width: 10.w),
+                        _buildRetroTab(
+                          label: 'ARTISTS (${controller.allArtists.length})',
+                          selected: _activeTab == LibraryTab.artists,
+                          onTap: () =>
+                              setState(() => _activeTab = LibraryTab.artists),
+                        ),
+                        SizedBox(width: 10.w),
+                        _buildRetroTab(
+                          label: 'LIKED (${controller.likedSongIds.length})',
+                          selected: _activeTab == LibraryTab.liked,
+                          onTap: () =>
+                              setState(() => _activeTab = LibraryTab.liked),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: 10.h),
+
+                  // Main Content Area
+                  Expanded(
+                    child: _buildActiveTabBody(
+                      controller: controller,
+                      filteredSongs: filteredSongs,
+                      filteredAlbums: filteredAlbums,
+                      filteredArtists: filteredArtists,
+                    ),
+                  ),
+
+                  // Bottom Mini Player
+                  if (controller.currentSong != null)
+                    _buildMiniPlayer(context, controller),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActiveTabBody({
+    required AudioController controller,
+    required List<SongModel> filteredSongs,
+    required List<AlbumModel> filteredAlbums,
+    required List<ArtistModel> filteredArtists,
+  }) {
+    if (_activeTab == LibraryTab.albums) {
+      if (filteredAlbums.isEmpty) {
+        return Center(
+          child: Text(
+            'NO ALBUMS FOUND',
+            style: GoogleFonts.montserrat(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF757575),
+            ),
+          ),
+        );
+      }
+      return GridView.builder(
+        padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 16.h),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 14.w,
+          mainAxisSpacing: 14.h,
+          childAspectRatio: 0.84,
+        ),
+        itemCount: filteredAlbums.length,
+        itemBuilder: (context, index) {
+          final album = filteredAlbums[index];
+          return GestureDetector(
+            onTap: () {
+              final albumSongs = controller.getSongsByAlbum(album.id);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CollectionSongsScreen(
+                    title: album.album,
+                    subtitle:
+                        '${album.artist ?? 'Unknown Artist'} • ${albumSongs.length} Tracks',
+                    songs: albumSongs,
+                    artworkId: album.id,
+                    artworkType: ArtworkType.ALBUM,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              padding: EdgeInsets.all(10.r),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFFFFF), Color(0xFFFFEBEE)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color: const Color(0xFF8E0000),
+                  width: 1.8.w,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF8E0000),
+                    offset: Offset(3.w, 3.h),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.r),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: QueryArtworkWidget(
+                          id: album.id,
+                          type: ArtworkType.ALBUM,
+                          nullArtworkWidget: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFFFF1744), Color(0xFFB71C1C)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.album_rounded,
+                              color: Colors.white,
+                              size: 46.sp,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  Text(
+                    album.album,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  SizedBox(height: 2.h),
+                  Text(
+                    '${album.numOfSongs} TRACKS',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFB71C1C),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    if (_activeTab == LibraryTab.artists) {
+      if (filteredArtists.isEmpty) {
+        return Center(
+          child: Text(
+            'NO ARTISTS FOUND',
+            style: GoogleFonts.montserrat(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF757575),
+            ),
+          ),
+        );
+      }
+      return ListView.builder(
+        padding: EdgeInsets.only(bottom: 16.h),
+        itemCount: filteredArtists.length,
+        itemBuilder: (context, index) {
+          final artist = filteredArtists[index];
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
+            child: GestureDetector(
+              onTap: () {
+                final artistSongs = controller.getSongsByArtist(artist.id);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CollectionSongsScreen(
+                      title: artist.artist,
+                      subtitle: '${artistSongs.length} Tracks',
+                      songs: artistSongs,
+                      artworkId: artist.id,
+                      artworkType: ArtworkType.ARTIST,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                height: 70.h,
+                padding: EdgeInsets.symmetric(horizontal: 14.w),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFFFFF), Color(0xFFFFEBEE)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14.r),
+                  border: Border.all(
+                    color: const Color(0xFF8E0000),
+                    width: 1.8.w,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFD32F2F).withOpacity(0.25),
+                      offset: Offset(3.w, 3.h),
+                      blurRadius: 0,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 46.w,
+                      height: 46.w,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF1744), Color(0xFFB71C1C)],
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF8E0000),
+                          width: 2.w,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: Colors.white,
+                        size: 24.sp,
+                      ),
+                    ),
+                    SizedBox(width: 14.w),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            artist.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.montserrat(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          SizedBox(height: 3.h),
+                          Text(
+                            '${artist.numberOfTracks ?? 0} TRACKS • ${artist.numberOfAlbums ?? 0} ALBUMS',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFB71C1C),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: const Color(0xFFB71C1C),
+                      size: 16.sp,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // Songs or Liked Tab
+    if (filteredSongs.isEmpty) {
+      return Center(
+        child: Text(
+          _activeTab == LibraryTab.liked
+              ? 'NO LIKED TRACKS'
+              : 'NO LOCAL AUDIO FILES FOUND',
+          style: GoogleFonts.montserrat(
+            fontSize: 12.sp,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+            color: const Color(0xFF757575),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.only(bottom: 16.h),
+      itemCount: filteredSongs.length,
+      itemBuilder: (context, index) {
+        final song = filteredSongs[index];
+        return SongTile(
+          song: song,
+          onTap: () {
+            controller.playSong(song, customList: filteredSongs);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const NowPlayingScreen(),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildRetroTab({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [Color(0xFFFF1744), Color(0xFFB71C1C)],
+                )
+              : const LinearGradient(
+                  colors: [Color(0xFFFFFFFF), Color(0xFFFFEBEE)],
+                ),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: const Color(0xFF8E0000),
+            width: 1.8.w,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8E0000),
+              offset: Offset(2.w, 2.h),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.montserrat(
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: selected ? Colors.white : const Color(0xFFB71C1C),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniPlayer(BuildContext context, AudioController controller) {
+    final song = controller.currentSong!;
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const NowPlayingScreen()),
+      ),
+      child: Container(
+        margin: EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 12.h),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFB71C1C), Color(0xFFFF1744)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(
+            color: const Color(0xFF6A0000),
+            width: 2.w,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6A0000),
+              offset: Offset(4.w, 4.h),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42.w,
+              height: 42.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.w),
+              ),
+              child: ClipOval(
+                child: QueryArtworkWidget(
+                  id: song.id,
+                  type: ArtworkType.AUDIO,
+                  nullArtworkWidget: Container(
+                    color: Colors.white.withOpacity(0.2),
+                    child: Icon(Icons.album_rounded,
+                        color: Colors.white, size: 22.sp),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.montserrat(
+                      color: Colors.white,
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 2.h),
+                  Text(
+                    _showMiniSkipBadge
+                        ? '+10 SEC >>'
+                        : '${song.artist ?? 'Unknown Artist'} • ${song.album ?? 'Single'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.montserrat(
+                      color: _showMiniSkipBadge
+                          ? const Color(0xFFFFEB3B)
+                          : Colors.white.withOpacity(0.9),
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: controller.togglePlayPause,
+              child: Container(
+                width: 38.w,
+                height: 38.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF6A0000),
+                    width: 1.8.w,
+                  ),
+                ),
+                child: Icon(
+                  controller.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: const Color(0xFFB71C1C),
+                  size: 24.sp,
+                ),
+              ),
+            ),
+            SizedBox(width: 8.w),
+            GestureDetector(
+              onTap: controller.playNext,
+              onDoubleTap: () => _triggerMiniDoubleTapSkip(controller),
+              child: Container(
+                width: 38.w,
+                height: 38.w,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5.w),
+                ),
+                child: Icon(
+                  Icons.skip_next_rounded,
+                  color: Colors.white,
+                  size: 24.sp,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
