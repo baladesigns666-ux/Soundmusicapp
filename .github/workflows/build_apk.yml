@@ -74,10 +74,12 @@ jobs:
           }
           EOF
 
-      - name: Generate App Launcher Icon & Build Release APK
+      - name: Patch on_audio_query_android SDK, Generate Icon & Build APK
         run: |
           cd app_build
           flutter pub get
+          # Force compileSdkVersion 36 inside cached on_audio_query_android plugin
+          find "$PUB_CACHE" -path "*on_audio_query_android*/android/build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/g' {} +
           dart run flutter_launcher_icons
           flutter build apk --release
 
