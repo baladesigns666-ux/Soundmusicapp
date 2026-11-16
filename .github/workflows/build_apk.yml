@@ -41,15 +41,15 @@ jobs:
             exit 1
           fi
 
-      - name: Configure Android SDK & Fix Plugin Namespace
+      - name: Configure Android SDK, Namespace & JVM 17 Compatibility
         run: |
           cd app_build/android
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/g' app/build.gradle.kts || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/g' app/build.gradle || true
-          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 35/g' app/build.gradle.kts || true
-          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 35/g' app/build.gradle || true
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 35/g' app/build.gradle.kts || true
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 35/g' app/build.gradle || true
+          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 36/g' app/build.gradle.kts || true
+          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 36/g' app/build.gradle || true
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' app/build.gradle.kts || true
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/g' app/build.gradle || true
 
           cat << 'EOF' >> build.gradle.kts
 
@@ -59,7 +59,16 @@ jobs:
                       if (namespace == null) {
                           namespace = group.toString()
                       }
-                      compileSdk = 35
+                      compileSdk = 36
+                      compileOptions {
+                          sourceCompatibility = JavaVersion.VERSION_17
+                          targetCompatibility = JavaVersion.VERSION_17
+                      }
+                  }
+              }
+              tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+                  compilerOptions {
+                      jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
                   }
               }
           }
