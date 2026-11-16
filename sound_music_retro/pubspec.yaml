@@ -1,0 +1,35 @@
+name: sound_music
+description: Sound Music Refined Retro Local Audio & Live FM Radio Player
+publish_to: 'none'
+version: 1.0.0+6
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_screenutil: ^5.9.3
+  just_audio: ^0.9.40
+  just_audio_background: ^0.0.1-beta.13
+  audio_session: ^0.1.21
+  on_audio_query: ^2.9.0
+  permission_handler: ^11.3.1
+  google_fonts: ^6.2.1
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/LOGO.png"
+  adaptive_icon_background: "#FAF3E8"
+  adaptive_icon_foreground: "assets/LOGO.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/LOGO.png
