@@ -1,132 +1,45 @@
-name: Build Sound Music APK
+name: Build VibeHandle Release APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
-  build-apk:
+  build-android-apk:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      - name: Setup Flutter
+      - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.24.5'
           channel: 'stable'
           cache: true
 
-      - name: Cache Gradle & Maven Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-sound-music-${{ runner.os }}-v4
-          restore-keys: |
-            gradle-sound-music-${{ runner.os }}-
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Create Flutter Project & Copy Source + LOGO.png
-        run: |
-          flutter create --org com.kitesoftwares --project-name sound_music app_build
+      - name: Analyze project
+        run: flutter analyze
 
-          if [ -d "sound_music_retro/lib" ]; then
-            SRC_DIR="sound_music_retro"
-          else
-            SRC_DIR="."
-          fi
+      - name: Build release APK
+        run: flutter build apk --release
 
-          cp -r "$SRC_DIR/lib/"* app_build/lib/
-          cp "$SRC_DIR/pubspec.yaml" app_build/pubspec.yaml
-          cp "$SRC_DIR/android/app/src/main/AndroidManifest.xml" app_build/android/app/src/main/AndroidManifest.xml
-          mkdir -p app_build/assets
-
-          LOGO_FILE=$(find . -maxdepth 5 -iname "logo.png" -not -path "./app_build/*" | head -n 1)
-          if [ -n "$LOGO_FILE" ]; then
-            echo "Found logo at: $LOGO_FILE"
-            cp "$LOGO_FILE" app_build/assets/LOGO.png
-          else
-            echo "WARNING: LOGO.png not found! Generating fallback icon..."
-            python3 -c "import zlib, struct; w, h = 512, 512; raw = b''.join(b'\x00' + b'\xc6\x28\x28\xff' * w for _ in range(h)); chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff); png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''); open('app_build/assets/LOGO.png', 'wb').write(png)"
-          fi
-
-      - name: Configure Flutter Maven Repo, Mirrors, SDK & JVM 17
-        run: |
-          cd app_build/android
-          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/g' app/build.gradle.kts || true
-          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/g' app/build.gradle || true
-          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 36/g' app/build.gradle.kts || true
-          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 36/g' app/build.gradle || true
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' app/build.gradle.kts || true
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/g' app/build.gradle || true
-
-          python3 -c "p = 'settings.gradle.kts'; txt = open(p).read(); mirror = 'maven { url = uri(\"https://maven-central.storage-download.googleapis.com/maven2/\") }\n        '; open(p, 'w').write(txt.replace('mavenCentral()', mirror + 'mavenCentral()', 1))"
-
-          cat << 'EOF' >> build.gradle.kts
-
-          allprojects {
-              repositories {
-                  maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
-                  maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
-                  google()
-                  mavenCentral()
-              }
-          }
-
-          subprojects {
-              pluginManager.withPlugin("com.android.library") {
-                  extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
-                      if (namespace == null) {
-                          namespace = group.toString()
-                      }
-                      compileSdk = 36
-                      compileOptions {
-                          sourceCompatibility = JavaVersion.VERSION_17
-                          targetCompatibility = JavaVersion.VERSION_17
-                      }
-                  }
-              }
-              tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-                  compilerOptions {
-                      jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-                  }
-              }
-          }
-          EOF
-
-          cat << 'EOF' >> gradle.properties
-          org.gradle.workers.max=2
-          org.gradle.parallel=false
-          EOF
-
-      - name: Patch on_audio_query_android SDK, Generate Icon & Build APK
-        run: |
-          cd app_build
-          flutter pub get
-          find "$PUB_CACHE" -path "*on_audio_query_android*/android/build.gradle" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/g' {} +
-          dart run flutter_launcher_icons
-
-          for attempt in 1 2 3; do
-            echo "Build attempt $attempt..."
-            if flutter build apk --release; then
-              exit 0
-            fi
-            echo "Attempt $attempt failed, waiting 15s before retry..."
-            sleep 15
-          done
-          exit 1
-
-      - name: Upload APK Artifact
+      - name: Upload Release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Sound-Music-APK
-          path: app_build/build/app/outputs/flutter-apk/app-release.apk
+          name: vibehandle-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
